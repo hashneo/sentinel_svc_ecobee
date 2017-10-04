@@ -7,7 +7,6 @@ info:
   termsOfService: ''
   contact:
     name: ''
-    url: ''
     email: 'steven.taylor@me.com'
   license:
     name: 'Steven Taylor'
@@ -55,6 +54,43 @@ paths:
           description: bad request
         410:
           description: invalid service id
+        default:
+          $ref: '#/responses/Error'
+
+  /config:
+    x-swagger-router-controller: system
+    get:
+      operationId: getConfig
+      security:
+      - Oauth:
+        - user
+      responses:
+        200:
+          description: ok
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ConfigSetting'
+        default:
+          $ref: '#/responses/Error'
+    post:
+      operationId: updateConfig
+      security:
+      - Oauth:
+        - user
+      parameters:
+        - in: body
+          name: data
+          schema:
+            type: array
+            items:
+              $ref: '#/definitions/ConfigSetting'
+          required: true
+      responses:
+        200:
+          description: ok
+          schema:
+            type: object
         default:
           $ref: '#/responses/Error'
 
@@ -232,3 +268,15 @@ definitions:
     properties:
       status:
         type: string
+
+  ConfigSetting:
+    type: object
+    properties:
+      name:
+        type: string
+      value:
+        type: string
+      help:
+        type: string
+      required:
+        type: boolean
