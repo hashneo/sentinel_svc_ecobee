@@ -14,6 +14,8 @@ stages:
 
 build_job:
   stage: build
+  only:
+    - master
   script:
     - docker login -u gitlab-ci-token -p $CI_JOB_TOKEN docker.steventaylor.me
     - docker build -t $REGISTRY_IMAGE:$CI_COMMIT_SHA -t $REGISTRY_IMAGE:latest -f Dockerfile.$BUILD_ARCH .
@@ -23,6 +25,8 @@ build_job:
 
 deploy_job:
   stage: deploy
+  only:
+    - master
   script:
     - docker -H tcp://$SENTINEL_HOST:2375 login -u gitlab-ci-token -p $CI_JOB_TOKEN docker.steventaylor.me
     - docker -H tcp://$SENTINEL_HOST:2375 pull $REGISTRY_IMAGE:$CI_COMMIT_SHA
