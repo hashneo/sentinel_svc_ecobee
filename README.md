@@ -1,1 +1,1 @@
-# My brand new project called "nest"
+# My brand new project called "ecobee"

@@ -31,13 +31,13 @@ var config = {
     }
 };
 
-consul.kv.get('config/sentinel/nest', function(err, result) {
+consul.kv.get('config/sentinel/ecobee', function(err, result) {
     if (err) throw err;
 
     let config = JSON.parse(result.Value);
 
     global.config = config;
-    global.module = require('./nest.js')(config);
+    global.module = require('./ecobee.js')(config);
 });
 
 process.on('unhandledRejection', (reason, p) => {
