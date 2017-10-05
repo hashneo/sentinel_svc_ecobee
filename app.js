@@ -34,9 +34,26 @@ var config = {
 consul.kv.get('config/sentinel/ecobee', function(err, result) {
     if (err) throw err;
 
+    if (!result)
+        result = { Value : null };
+
     let config = JSON.parse(result.Value);
 
+    if (!config)
+        config = {};
+
+    config.save = function(){
+        return new Promise( (fulfill, reject) => {
+            consul.kv.set( 'config/sentinel/ecobee', JSON.stringify(this, '\t'), function(err, result) {
+                if (err)
+                    return reject(err);
+                fulfill(result);
+            })
+        });
+    };
+
     global.config = config;
+    global.config.save();
     global.module = require('./ecobee.js')(config);
 });
 

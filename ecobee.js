@@ -7,7 +7,7 @@ function ecobee(config) {
         return new ecobee(config);
     }
 
-    var ecobeeApi = require('ecobee-api');
+    var ecobeeApi = require('./ecobee-api');
 
     const redis = require('redis');
     var moment = require('moment');
@@ -235,102 +235,11 @@ function ecobee(config) {
         });
     };
 
-    // off, heat, cool, auto
-    function getHvacMode(shared){
-        if ( shared.target_temperature_type === 'range')
-            return 'auto';
-        return shared.target_temperature_type;
-    }
-
-    // off, heating, cooling
-    function getHvacState(shared){
-        if ( shared.hvac_heater_state )
-            return 'heating';
-        if ( shared.hvac_ac_state )
-            return 'cooling';
-
-        return 'off';
-    }
-
-    // auto, continuous, periodic
-    function getFanMode(device){
-        if ( device.fan_timer_timeout > 0 )
-            return 'periodic';
-        if ( device.fan_mode == 'on')
-            return 'continuous';
-        if ( device.fan_mode == 'auto')
-            return 'auto';
-    }
-
-    function getFanState(shared){
-        return shared.hvac_fan_state;
-    }
-
-    function fillStructure(_deviceId, data){
-
-        let device = data.device[_deviceId];
-        let shared = data.shared[_deviceId];
-
-        let status = {
-            mode: getHvacMode(shared),
-            state: getHvacState(shared),
-            fan: {
-                mode: getFanMode(device),
-                running: getFanState(shared)
-            },
-            temperature: {
-                cool: {
-                    set: null
-                },
-                heat: {
-                    set: null
-                },
-                current: ecobeeApi.ctof(shared.current_temperature),
-                humidity: device.current_humidity
-            },
-            battery: {
-                level: device.battery_level
-            }
-        };
-
-        switch (status.mode){
-            case 'heat':
-                status.temperature.heat.set = ecobeeApi.ctof(shared.target_temperature);
-                break;
-            case 'cool':
-                status.temperature.cool.set = ecobeeApi.ctof(shared.target_temperature);
-                break;
-            case 'auto':
-                status.temperature.cool.set = ecobeeApi.ctof(shared.target_temperature_high);
-                status.temperature.heat.set = ecobeeApi.ctof(shared.target_temperature_low);
-                break;
-            case 'off':
-        }
-        return status;
-    }
-
 
     function updateStatus() {
         return new Promise( ( fulfill, reject ) => {
             try {
-                ecobeeApi.fetchStatus((data) => {
-
-                    if ( data ) {
-                        let structures = Object.keys(data.structure);
-                        for (let x in structures) {
-
-                            let _structure = data.structure[structures[x]];
-                            let _devices = Object.keys(_structure.devices);
-                            for (let y in _devices) {
-                                let _deviceId = _structure.devices[_devices[y]].split('.')[1];
-                                let status = fillStructure(_deviceId, data);
-                                statusCache.set(_deviceId, status);
-                            }
-
-                        }
-                    }
-                    fulfill();
-                });
+                fulfill();
             }catch(err){
                 reject(err);
             }
@@ -346,54 +255,7 @@ function ecobee(config) {
     function loadSystem(){
         return new Promise( ( fulfill, reject ) => {
             try {
-                ecobeeApi.login(global.config.email, global.config.password, (err, session) => {
-
-                    if ( err ){
-                        reject(err);
-                        return;
-                    }
-
-                    ecobeeApi.fetchStatus((data) => {
-                        let devices = [];
-
-                        let structures = Object.keys(data.structure);
-                        for (let x in structures) {
-
-                            let structureId = structures[x];
-
-                            let _structure = data.structure[structureId];
-
-                            let _devices = Object.keys(_structure.devices);
-                            for (let y in _devices) {
-
-                                let _deviceId = _structure.devices[_devices[y]].split('.')[1];
-                                let status = fillStructure(_deviceId, data);
-                                let shared = data.shared[_deviceId];
-
-                                deviceMap[_deviceId] = {
-                                    structureId : structureId
-                                };
-
-                                let d = {
-                                    name: shared.name,
-                                    id: _deviceId,
-                                    where: {'location': { city: _structure.location, room: _structure.name } },
-                                    type: 'hvac',
-                                    current: {}
-                                };
-
-                                deviceCache.set(d.id, d);
-
-                                devices.push(d);
-
-
-                                statusCache.set(_deviceId, status);
-                            }
-                        }
-
-                        fulfill(devices);
-                    });
-                });
+                fulfill();
             } catch(err){
                 reject(err);
             }
