@@ -58,7 +58,7 @@ paths:
           $ref: '#/responses/Error'
 
   /config:
-    x-swagger-router-controller: system
+    x-swagger-router-controller: config
     get:
       operationId: getConfig
       security:

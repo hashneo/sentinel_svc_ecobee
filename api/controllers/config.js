@@ -1,9 +1,8 @@
 'use strict';
-var request = require('request');
+
+const ecobeeApi = require('./ecobee-api.js');
 
 module.exports.getConfig = (req, res) => {
-
-    let settings = [];
 
     let cfg = global.config;
 
@@ -11,30 +10,35 @@ module.exports.getConfig = (req, res) => {
 
     if (!cfg.auth || !cfg.auth.token){
 
-        let apiKey = 'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
-
-        let url = `https://api.ecobee.com/authorize?response_type=ecobeePin&client_id=${apiKey}&scope=smartWrite`;
-
         p.push( new Promise( ( fulfill, reject ) => {
 
-            request(url, function (error, response, body) {
-                if (!error && response.statusCode == 200) {
-                    let ecobeePin = JSON.parse(body);
-
+            ecobeeApi.requestPin()
+                .then( (ecobeePin) => {
                     cfg.auth = { pin : ecobeePin };
 
-                    fulfill();
-                }else{
-                    reject(error || response)
-                }
-            });
+                    cfg.save();
+
+                    return fulfill( {
+                        name: 'auth',
+                        value: cfg.auth,
+                        required: true
+                    } );
+                })
+                .catch( (err) =>{
+                    reject(err);
+                });
+
         }) );
-
-
 
     }
 
-    res.json( settings );
+    Promise.all( p )
+        .then( (settings) => {
+            res.json(settings);
+        })
+        .catch( (err) => {
+            res.status(500).json( { code: err.code || 0, message: err.message } );
+        });
 };
 
 module.exports.updateConfig = (req, res) => {

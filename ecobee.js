@@ -119,18 +119,7 @@ function ecobee(config) {
 
     this.setFanMode = (id, mode) =>{
         return new Promise( (fulfill, reject) => {
-            switch (mode) {
-                case 'auto':
-                case 'off':
-                    mode = 'auto';
-                    break;
-                case 'continuous':
-                case 'periodic':
-                    mode = 'on';
-                    break;
-            }
             try {
-                ecobeeApi.setFanMode(id, mode);
                 fulfill();
             }catch(err){
                 reject(err);
@@ -140,26 +129,7 @@ function ecobee(config) {
 
     this.setHvacMode = (id, mode) =>{
         return new Promise( (fulfill, reject) => {
-
-            if ( mode === 'auto')
-                mode = 'range';
-
             try {
-
-                let structureId = deviceMap[id].structureId;
-
-                switch ( mode ) {
-                    case 'away':
-                        ecobeeApi.setAway(true, structureId);
-                        break;
-                    case 'home':
-                        ecobeeApi.setHome(structureId);
-                        break;
-                    default:
-                        ecobeeApi.setTargetTemperatureType(id, mode);
-                        break;
-                }
-
                 fulfill();
             }catch(err){
                 reject(err);
@@ -173,23 +143,7 @@ function ecobee(config) {
             statusCache.get(id, (err, current) => {
                 if (err)
                     return reject(err);
-
-                current.temperature.heat.set = value;
-
                 try {
-                    switch (current.mode){
-                        case 'heat':
-                            ecobeeApi.setTemperature( id, value );
-                            break;
-                        case 'auto':
-                            ecobeeApi.setTemperatureRange( id, current.temperature.heat.set, current.temperature.cool.set );
-                            break;
-                        case 'off':
-                        case 'cool':
-                            reject(new Error('invalid mode'));
-                            break;
-                    }
-
                     statusCache.set(id, current);
 
                     fulfill();
@@ -208,22 +162,7 @@ function ecobee(config) {
                 if (err)
                     return reject(err);
 
-                current.temperature.cool.set = value;
-
                 try {
-                    switch (current.mode){
-                        case 'cool':
-                            ecobeeApi.setTemperature( id, value);
-                            break;
-                        case 'auto':
-                            ecobeeApi.setTemperatureRange( id, current.temperature.heat.set, current.temperature.cool.set );
-                            break;
-                        case 'off':
-                        case 'heat':
-                            reject(new Error('invalid mode'));
-                            break;
-                    }
-
                     statusCache.set(id, current);
 
                     fulfill();
