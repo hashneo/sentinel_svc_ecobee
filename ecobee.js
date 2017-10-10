@@ -195,8 +195,94 @@ function ecobee(config) {
         return new Promise( ( fulfill, reject ) => {
             try {
                 ecobeeApi.getDevices()
-                    .then( (devices) => {
-                        fulfill();
+                    .then( (data) => {
+
+                        let devices = [];
+
+                        for (let x in data.thermostatList) {
+
+                            let thermostat = data.thermostatList[x];
+
+                            let d = {
+                                name: thermostat.name,
+                                id: thermostat.identifier,
+                                where: {'location': {city: thermostat.location.city, room: ''}},
+                                type: 'hvac',
+                                current: {}
+                            };
+
+                            let thermostatStatus = {
+                                mode: thermostat.settings.hvacMode,
+                                state: "off",
+                                fan:{
+                                        mode: thermostat.runtime.desiredFanMode,
+                                        running: thermostat.runtime.desiredFanMode !== 'auto'
+                                    },
+                                temperature : {
+                                    cool: {
+                                        set: thermostat.runtime.desiredCool / 10.0
+                                    },
+                                    heat: {
+                                        set: thermostat.runtime.desiredHeat / 10.0
+                                    },
+                                    current: thermostat.runtime.actualTemperature / 10.0,
+                                    humidity: thermostat.runtime.actualHumidity
+                                },
+                                battery: {
+                                    level: 100
+                                }
+                            };
+
+                            for (let y in thermostat.remoteSensors) {
+                                let sensor =  thermostat.remoteSensors[y];
+
+                                if ( sensor.type !== 'thermostat' ) {
+                                    let s = {
+                                        name: sensor.name,
+                                        id: thermostat.identifier + '.' + sensor.id.replace(':', '_'),
+                                        type: 'sensor.temperature',
+                                        current: {}
+                                    };
+
+                                    let sensorStatus = {
+                                        armed: (sensor.inUse === 'true'),
+                                        temperature: {
+                                            current: 0
+                                        },
+                                        tripped: {
+                                            current: false
+                                        }
+                                    };
+
+                                    for (let z in sensor.capability) {
+                                        let capability = sensor.capability[z];
+
+                                        switch (capability.type) {
+                                            case 'temperature':
+                                                sensorStatus.temperature.current = (capability.value / 10.0);
+                                                break;
+                                            case 'occupancy':
+                                                sensorStatus.tripped.current = ( capability.value === 'true');
+                                                break;
+                                        }
+                                    }
+
+                                    deviceCache.set(s.id, s);
+
+                                    devices.push(s);
+
+                                    statusCache.set(s.id, sensorStatus);
+                                }
+                            }
+
+                            deviceCache.set(d.id, d);
+
+                            devices.push(d);
+
+                            statusCache.set(d.id, thermostatStatus);
+                        }
+
+                        fulfill(devices);
                     })
                     .catch( (err) =>{
                         reject(err);
@@ -221,14 +307,20 @@ function ecobee(config) {
                         .catch((err) => {
 
                             if ( err.error){
-                                if ( err.error == 'authorization_pending' ) {
+                                if ( err.error === 'authorization_pending' ) {
                                     setTimeout(init, 1000);
                                     return;
-                                } else if ( err.error == 'slow_down' ) {
+                                } else if ( err.error === 'slow_down' ) {
                                     setTimeout(init, 60000);
                                     return;
                                 } else if ( err.error === 'authorization_expired' ){
-                                    setTimeout(init, 60000);
+                                    setTimeout(init, 1000);
+                                    return;
+                                } else if ( err.error === 'invalid_grant' ){
+                                    setTimeout(init, 1000);
+                                    return;
+                                } else if ( err.error === 'empty_response' ){
+                                    setTimeout(init, 1000);
                                     return;
                                 }
                             }
@@ -243,16 +335,21 @@ function ecobee(config) {
 
             })
             .catch((err) => {
-
-                if ( err.error){
-                    if ( err.error == 'authorization_pending' ) {
+                if ( err && err.error ){
+                    if ( err.error === 'authorization_pending' ) {
                         setTimeout(init, 1000);
                         return;
-                    } else if ( err.error == 'slow_down' ) {
+                    } else if ( err.error === 'slow_down' ) {
                         setTimeout(init, 60000);
                         return;
                     } else if ( err.error === 'authorization_expired' ){
-                        setTimeout(init, 60000);
+                        setTimeout(init, 1000);
+                        return;
+                    } else if ( err.error === 'invalid_grant' ){
+                        setTimeout(init, 1000);
+                        return;
+                    } else if ( err.error === 'empty_response' ){
+                        setTimeout(init, 1000);
                         return;
                     }
                 }

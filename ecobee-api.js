@@ -28,8 +28,13 @@ function ecobeeApi() {
                     .then( (token) => {
                         accessToken = token;
                         global.config['auth'] = accessToken;
-                        global.config.save();
-                        fulfill();
+                        global.config.save()
+                            .then( () => {
+                                fulfill();
+                            })
+                            .catch( (err) => {
+                                reject(err);
+                            })
                     })
                     .catch( (err) =>{
                         global.config['auth'] = null;
@@ -62,35 +67,65 @@ function ecobeeApi() {
 
             try {
                 request(options, function (err, response, body) {
-                    if (!err)
+                    if (err)
                         reject(err);
 
                     let r = JSON.parse(body);
 
                     if ( r.status ){
 
-                        // Authentication token has expired.
-                        if ( r.status.code === 14 ){
-                            requestToken()
-                                .then( (token) => {
-                                    accessToken = token;
-                                    global.config.auth.access_token = accessToken;
-                                    global.config.auth['expires_at'] = moment.utc().add( token.expires_in, 'm' ).format();
-                                    global.config.save();
-                                    // Retry the operation
-                                    return call(method, body, url);
-                                })
-                                .catch( (err) => {
-                                    reject(err);
-                                });
+                        switch ( r.status.code ) {
+                            // Succeess
+                            case 0:
+                                if (!r) {
+                                    return reject( {
+                                        error: "empty_response",
+                                        error_description: "Received an empty response from the server.",
+                                        error_uri: ""
+                                    } );
+                                }
 
-                            return;
+                                return fulfill(r);
+                                break;
+
+                            // Not authorized.
+                            case 2:
+                                return reject(r);
+                                break;
+
+                            // Authentication failed.
+                            case 1:
+                            // Invalid token. Token has been deauthorized by user. You must re-request authorization.
+                            case 16:
+                                console.log( 'ecobee authentication has failed, You must re-request authorization.');
+                                // Wipe tokens and need to restart it all.
+                                ecobeePin = null;
+                                global.config.auth = null;
+                                //global.config.save();
+
+                            // Authentication token has expired.
+                            case 14:
+                                requestToken()
+                                    .then((token) => {
+                                        accessToken = token;
+                                        global.config.auth = accessToken;
+                                        global.config.auth['expires_at'] = moment.utc().add(token.expires_in, 'm').format();
+
+                                        // Retry the operation
+                                        return call(method, body, url);
+                                    })
+                                    .catch((err) => {
+                                        reject(err);
+                                    });
+
+                                return;
+                                break;
+                            default:
+                                return reject(r);
                         }
-
-                        return reject(r);
                     }
 
-                    fulfill(r);
+                    reject(r);
                 });
             } catch (e) {
                 console.log('request error => ' + e);
@@ -161,6 +196,11 @@ function ecobeeApi() {
                         console.log( `ecobee authorization has expired. need to request a new ecobee pin and establish trust.`);
                         ecobeePin = null;
                     }
+                    if ( r.error === 'invalid_grant' ){
+                        console.log( `ecobee authorization is invalid. need to request a new ecobee pin and establish trust.`);
+                        ecobeePin = null;
+                        global.config.auth = null;
+                    }
                     return reject(r);
                 }
 
@@ -215,13 +255,18 @@ function ecobeeApi() {
                 selection: {
                     selectionType: 'registered',
                     selectionMatch: '',
-                    includeRuntime: true
+                    includeElectricity: true,
+                    includeLocation: true,
+                    includeRuntime: true,
+                    includeSettings: true,
+                    includeEquipmentStatus: true,
+                    includeSensors: true
                 }
             };
 
             get( 'https://api.ecobee.com/1/thermostat?format=json', o )
             .then( (data) => {
-
+                fulfill(data);
             }).
             catch( (err) =>{
                 reject(err);
