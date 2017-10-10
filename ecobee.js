@@ -194,36 +194,74 @@ function ecobee(config) {
     function loadSystem(){
         return new Promise( ( fulfill, reject ) => {
             try {
-                fulfill();
+                ecobeeApi.getDevices()
+                    .then( (devices) => {
+                        fulfill();
+                    })
+                    .catch( (err) =>{
+                        reject(err);
+                    });
+
             } catch(err){
                 reject(err);
             }
         });
     }
 
-    loadSystem()
+    function init() {
+        loadSystem()
 
-        .then( () => {
+            .then(() => {
 
-            function pollSystem() {
-                updateStatus()
-                    .then(() => {
-                        setTimeout(pollSystem, 10000);
-                    })
-                    .catch((err) => {
-                        console.error(err);
-                        process.exit(1);
-                        //setTimeout(pollSystem, 60000);
-                    });
-            }
+                function pollSystem() {
+                    updateStatus()
+                        .then(() => {
+                            setTimeout(pollSystem, 10000);
+                        })
+                        .catch((err) => {
 
-            setTimeout(pollSystem, 10000);
+                            if ( err.error){
+                                if ( err.error == 'authorization_pending' ) {
+                                    setTimeout(init, 1000);
+                                    return;
+                                } else if ( err.error == 'slow_down' ) {
+                                    setTimeout(init, 60000);
+                                    return;
+                                } else if ( err.error === 'authorization_expired' ){
+                                    setTimeout(init, 60000);
+                                    return;
+                                }
+                            }
 
-        })
-        .catch((err) => {
-            console.error(err);
-            process.exit(1);
-        });
+                            console.error(err);
+                            process.exit(1);
+                            //setTimeout(pollSystem, 60000);
+                        });
+                }
+
+                setTimeout(pollSystem, 10000);
+
+            })
+            .catch((err) => {
+
+                if ( err.error){
+                    if ( err.error == 'authorization_pending' ) {
+                        setTimeout(init, 1000);
+                        return;
+                    } else if ( err.error == 'slow_down' ) {
+                        setTimeout(init, 60000);
+                        return;
+                    } else if ( err.error === 'authorization_expired' ){
+                        setTimeout(init, 60000);
+                        return;
+                    }
+                }
+                console.error(err);
+                process.exit(1);
+            });
+    }
+
+    init();
 
     return this;
 }

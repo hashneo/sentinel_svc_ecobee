@@ -6,9 +6,169 @@ function ecobeeApi() {
     const request = require('request');
     const moment = require('moment');
 
+    const https = require('https');
+    const keepAliveAgent = new https.Agent({ keepAlive: true });
+
     let apiKey = 'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
 
     let ecobeePin;
+
+    let accessToken;
+
+    let that = this;
+
+    function call(method, body, url) {
+
+        return new Promise( (fulfill, reject) => {
+
+            accessToken = global.config.auth;
+
+            if (!accessToken){
+                requestToken()
+                    .then( (token) => {
+                        accessToken = token;
+                        global.config['auth'] = accessToken;
+                        global.config.save();
+                        fulfill();
+                    })
+                    .catch( (err) =>{
+                        global.config['auth'] = null;
+                        global.config.save();
+                        reject(err);
+                    });
+
+                return;
+            }
+
+            let options = {
+                method: method,
+                url: url,
+                //encoding: null,
+                timeout: 30000,
+                //agent: keepAliveAgent,
+                headers: {
+                    Authorization: `Bearer ${accessToken.access_token}`
+                }
+            };
+
+            if (body) {
+                if ( method ==='GET' ){
+                    options.url += `&body=${encodeURIComponent(body)}`;
+                } else {
+                    options['body'] = body;
+                    options['contentType'] = 'text/json';
+                }
+            }
+
+            try {
+                request(options, function (err, response, body) {
+                    if (!err)
+                        reject(err);
+
+                    let r = JSON.parse(body);
+
+                    if ( r.status ){
+
+                        // Authentication token has expired.
+                        if ( r.status.code === 14 ){
+                            requestToken()
+                                .then( (token) => {
+                                    accessToken = token;
+                                    global.config.auth.access_token = accessToken;
+                                    global.config.auth['expires_at'] = moment.utc().add( token.expires_in, 'm' ).format();
+                                    global.config.save();
+                                    // Retry the operation
+                                    return call(method, body, url);
+                                })
+                                .catch( (err) => {
+                                    reject(err);
+                                });
+
+                            return;
+                        }
+
+                        return reject(r);
+                    }
+
+                    fulfill(r);
+                });
+            } catch (e) {
+                console.log('request error => ' + e);
+                reject(e);
+            }
+        });
+    }
+
+    function get(url, obj) {
+        return call( 'GET', obj ? JSON.stringify(obj) : null, url );
+    }
+
+    function post(url, obj) {
+        return call( 'POST', JSON.stringify(obj), url );
+    }
+
+
+    function requestToken() {
+
+        return new Promise( (fulfill, reject) => {
+
+            let url;
+
+            if (!accessToken) {
+                if (!ecobeePin || !ecobeePin.code) {
+                    that.requestPin()
+                        .then(() => {
+                            return requestToken();
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                    return;
+                }
+
+                let next_poll = moment(ecobeePin.next_poll);
+
+                if (moment().utc() < next_poll) {
+
+                    console.log(`ecobee authorization is pending.`);
+
+                    return reject(
+                        {
+                            error: "authorization_pending",
+                            error_description: "Waiting for user to authorize application.",
+                            error_uri: "https://tools.ietf.org/html/rfc6749#section-5.2"
+                        }
+                    );
+                }
+
+                ecobeePin['next_poll'] = next_poll.add(parseInt(ecobeePin.interval) + 2, 's').format();
+
+                url = `https://api.ecobee.com/token?grant_type=ecobeePin&code=${ecobeePin.code}&client_id=${apiKey}&scope=smartWrite`;
+            }
+            else {
+                url = `https://api.ecobee.com/token?grant_type=refresh_token&code=${accessToken.refresh_token}&client_id=${apiKey}&scope=smartWrite`;
+            }
+
+            request( { method: 'POST', url: url }, function (err, response, body) {
+
+                if (err)
+                    return reject(err);
+
+                let r = JSON.parse(body);
+
+                if ( r.error ){
+                    if ( r.error === 'authorization_expired' ){
+                        console.log( `ecobee authorization has expired. need to request a new ecobee pin and establish trust.`);
+                        ecobeePin = null;
+                    }
+                    return reject(r);
+                }
+
+                return fulfill(r);
+            });
+        });
+    }
+
 
     this.requestPin = () => {
 
@@ -19,84 +179,58 @@ function ecobeeApi() {
             if ( ecobeePin ){
                 let expires_at = moment( ecobeePin.expires_at );
 
-                if ( expires_at >= moment() ) {
+                if ( expires_at >= moment().utc() ) {
+                    console.log( `existing ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
                     return fulfill( ecobeePin );
+                } else {
+                    console.log( `ecobee pin => ${ecobeePin.ecobeePin}, has expired. requesting a new one.`);
+                    ecobeePin = null;
                 }
-            } else {
-                ecobeePin = null;
             }
 
-            request(url, function (error, response, body) {
-                if (!error && response.statusCode == 200) {
-                    ecobeePin = JSON.parse(body);
+            request(url, function (err, response, body) {
 
-                    ecobeePin['expires_at'] = moment.utc().add( ecobeePin.expires_in, 'm' ).format();
+                if (err)
+                    return reject(err);
 
-                    ecobeePin['next_poll'] =  moment.utc().add( parseInt(ecobeePin.interval) + 2, 's' );
+                ecobeePin = JSON.parse(body);
 
-                    return fulfill( ecobeePin );
-                }else{
-                    reject(error || response);
-                }
+                ecobeePin['expires_at'] = moment.utc().add( ecobeePin.expires_in, 'm' ).format();
+                ecobeePin['next_poll'] =  moment.utc().add( parseInt(ecobeePin.interval) + 2, 's' ).format();
+
+                console.log( `new ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
+
+                return fulfill( ecobeePin );
+
             });
         });
 
     };
 
-    function getToken() {
+    this.getDevices = () => {
 
         return new Promise( (fulfill, reject) => {
 
-            if (!ecobeePin || !ecobeePin.code){
-                return reject(
-                    {
-                        "error": "authorization_expired",
-                        "error_description": "The authorization has expired.",
-                        "error_uri": "https://tools.ietf.org/html/rfc6749#section-5.2"
-                    }
-                );
-            }
-
-            if ( ecobeePin ){
-                let next_poll = moment( ecobeePin.next_poll );
-
-                if ( next_poll < moment() ) {
-                    return reject(
-                        {
-                            "error": "authorization_pending",
-                            "error_description": "Waiting for user to authorize application.",
-                            "error_uri": "https://tools.ietf.org/html/rfc6749#section-5.2"
-                        }
-                    );
+            let o = {
+                selection: {
+                    selectionType: 'registered',
+                    selectionMatch: '',
+                    includeRuntime: true
                 }
-            } else {
+            };
 
-            }
+            get( 'https://api.ecobee.com/1/thermostat?format=json', o )
+            .then( (data) => {
 
-            let url = `https://api.ecobee.com/authorize?grant_type=ecobeePin&code=${ecobeePin.code}&client_id=${apiKey}&scope=smartWrite`;
-
-            request(url, function (error, response, body) {
-                if (!error && response.statusCode == 200) {
-                    let r = JSON.parse(body);
-
-                    if ( r.error ){
-                        if ( r.error === 'authorization_expired' ){
-                            ecobeePin = null;
-                        }
-                        return reject(r);
-                    }
-
-                    ecobeePin['expires_at'] = moment.utc().add( ecobeePin.expires_in, 'm' ).format();
-
-                    return fulfill( ecobeePin );
-                }else{
-                    reject(error || response);
-                }
+            }).
+            catch( (err) =>{
+                reject(err);
             });
+
         });
 
+    };
 
-    }
 }
 
 module.exports = new ecobeeApi();

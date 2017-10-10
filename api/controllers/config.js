@@ -1,6 +1,6 @@
 'use strict';
 
-const ecobeeApi = require('./ecobee-api.js');
+const ecobeeApi = require('../../ecobee-api.js');
 
 module.exports.getConfig = (req, res) => {
 
