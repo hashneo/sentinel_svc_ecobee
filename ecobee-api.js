@@ -23,14 +23,20 @@ function ecobeeApi() {
 
             accessToken = global.config.auth;
 
-            if (!accessToken){
+            if (!accessToken || !accessToken.access_token){
                 requestToken()
                     .then( (token) => {
+                        let wasRefresh = (accessToken);
                         accessToken = token;
                         global.config['auth'] = accessToken;
+                        global.config.auth['expires_at'] = moment.utc().add(token.expires_in, 'm').format();
                         global.config.save()
                             .then( () => {
-                                fulfill();
+                                if ( wasRefresh ){
+                                    return call(method, body, url);
+                                } else {
+                                    fulfill();
+                                }
                             })
                             .catch( (err) => {
                                 reject(err);
@@ -100,25 +106,14 @@ function ecobeeApi() {
                                 console.log( 'ecobee authentication has failed, You must re-request authorization.');
                                 // Wipe tokens and need to restart it all.
                                 ecobeePin = null;
-                                global.config.auth = null;
+                                global.config.auth = {};
                                 //global.config.save();
 
                             // Authentication token has expired.
                             case 14:
-                                requestToken()
-                                    .then((token) => {
-                                        accessToken = token;
-                                        global.config.auth = accessToken;
-                                        global.config.auth['expires_at'] = moment.utc().add(token.expires_in, 'm').format();
-
-                                        // Retry the operation
-                                        return call(method, body, url);
-                                    })
-                                    .catch((err) => {
-                                        reject(err);
-                                    });
-
-                                return;
+                                global.config.auth['expired'] = true;
+                                // Retry the operation
+                                return call(method, body, url);
                                 break;
                             default:
                                 return reject(r);

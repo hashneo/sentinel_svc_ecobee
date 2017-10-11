@@ -19,11 +19,12 @@ function ecobee(config) {
             retry_unfulfilled_commands: true
         }
     );
-
+/*
     pub.on('ready', function(e){
         let data = JSON.stringify( { module: 'ecobee', service: { name: 'sentinel-ecobee', port: 5050 } });
         pub.publish( 'sentinel.plugin.start', data);
     });
+*/
 
     pub.on('end', function(e){
         console.log('Redis hung up, committing suicide');
