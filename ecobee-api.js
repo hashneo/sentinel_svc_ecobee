@@ -26,7 +26,7 @@ function ecobeeApi() {
             if (!accessToken || !accessToken.access_token){
                 requestToken()
                     .then( (token) => {
-                        let wasRefresh = (accessToken);
+                        let wasRefresh = (accessToken.expired);
                         accessToken = token;
                         global.config['auth'] = accessToken;
                         global.config.auth['expires_at'] = moment.utc().add(token.expires_in, 'm').format();
@@ -44,7 +44,7 @@ function ecobeeApi() {
                     })
                     .catch( (err) =>{
                         global.config['auth'] = null;
-                        global.config.save();
+//                        global.config.save();
                         reject(err);
                     });
 
@@ -112,6 +112,7 @@ function ecobeeApi() {
                             // Authentication token has expired.
                             case 14:
                                 global.config.auth['expired'] = true;
+                                global.config.auth.access_token = null;
                                 // Retry the operation
                                 return call(method, body, url);
                                 break;
