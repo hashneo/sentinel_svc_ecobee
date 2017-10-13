@@ -17,13 +17,15 @@ function ecobeeApi() {
 
     let that = this;
 
+    let currentData;
+
     function call(method, body, url) {
 
         return new Promise( (fulfill, reject) => {
 
             accessToken = global.config.auth;
 
-            if (!accessToken || !accessToken.access_token){
+            if (!accessToken || !accessToken.access_token || accessToken.expired){
                 requestToken()
                     .then( (token) => {
                         let wasRefresh = (accessToken.expired);
@@ -33,7 +35,13 @@ function ecobeeApi() {
                         global.config.save()
                             .then( () => {
                                 if ( wasRefresh ){
-                                    return call(method, body, url);
+                                    call(method, body, url)
+                                        .then( (data) => {
+                                            fulfill(data);
+                                        })
+                                        .catch( (err) => {
+                                            reject(err);
+                                        });
                                 } else {
                                     fulfill();
                                 }
@@ -72,11 +80,11 @@ function ecobeeApi() {
             }
 
             try {
-                request(options, function (err, response, body) {
+                request(options, function (err, response, data) {
                     if (err)
                         reject(err);
 
-                    let r = JSON.parse(body);
+                    let r = JSON.parse(data);
 
                     if ( r.status ){
 
@@ -114,7 +122,14 @@ function ecobeeApi() {
                                 global.config.auth['expired'] = true;
                                 global.config.auth.access_token = null;
                                 // Retry the operation
-                                return call(method, body, url);
+                                call(method, body, url)
+                                    .then( (data) => {
+                                        fulfill(data);
+                                    })
+                                    .catch( (err) => {
+                                        reject(err);
+                                    });
+                                return;
                                 break;
                             default:
                                 return reject(r);
@@ -137,7 +152,6 @@ function ecobeeApi() {
     function post(url, obj) {
         return call( 'POST', JSON.stringify(obj), url );
     }
-
 
     function requestToken() {
 
@@ -243,6 +257,121 @@ function ecobeeApi() {
 
     };
 
+    this.setValue = ( id, name, value ) => {
+        return new Promise( (fulfill, reject) => {
+
+            let o = {
+                selection: {
+                    selectionType: 'thermostats',
+                    selectionMatch: id
+                },
+                thermostat: {
+                    settings : {
+                    }
+                }
+            };
+
+            o.thermostat.settings[name] = value;
+
+            post( 'https://api.ecobee.com/1/thermostat?format=json', o )
+                .then( () => {
+                    fulfill();
+                }).
+            catch( (err) =>{
+                reject(err);
+            });
+
+        });
+    };
+
+    this.callFunction = ( id, type, params ) => {
+        return new Promise( (fulfill, reject) => {
+
+            let o = {
+                selection: {
+                    selectionType: 'thermostats',
+                    selectionMatch: id
+                },
+                functions:[
+                    {
+                        type: type,
+                        params: params
+                    }
+                ]
+            };
+
+            post( 'https://api.ecobee.com/1/thermostat?format=json', o )
+                .then( () => {
+                    fulfill();
+                }).
+            catch( (err) =>{
+                reject(err);
+            });
+
+        });
+    };
+
+    this.setFan = ( id, state, duration ) => {
+        let p = {
+            holdType: 'indefinite',
+            heatHoldTemp: 0,
+            coolHoldTemp: 0,
+            isTemperatureAbsolute : false,
+            isTemperatureRelative : false,
+            fan: state
+        };
+
+        if ( duration ){
+            p.holdType = 'holdHours';
+            p['holdHours'] = duration;
+        }
+
+        return that.setHold( id, p );
+    };
+
+    this.setAway = (id ) => {
+        return that.setHold( id, {
+            holdType: 'indefinite',
+            holdClimateRef: 'away'
+        });
+    };
+
+    this.setHold = ( id, params ) => {
+        return that.callFunction( id, 'setHold', params );
+    };
+
+    this.resumeProgram = ( id ) => {
+        return that.callFunction( id, 'resumeProgram', { resumeAll: false } );
+    };
+
+    this.getCurrent = () => {
+
+        return new Promise( (fulfill, reject) => {
+
+            let o = {
+                selection: {
+                    selectionType: 'registered',
+                    selectionMatch: '',
+                    includeRuntime: true,
+                    includeSettings: true,
+                    includeEquipmentStatus: true,
+                    includeSensors: true
+                }
+            };
+
+            get( 'https://api.ecobee.com/1/thermostat?format=json', o )
+                .then( (data) => {
+                    currentData = data;
+                    fulfill(data);
+                }).
+            catch( (err) =>{
+                reject(err);
+            });
+
+        });
+
+    };
+
     this.getDevices = () => {
 
         return new Promise( (fulfill, reject) => {
@@ -262,6 +391,7 @@ function ecobeeApi() {
 
             get( 'https://api.ecobee.com/1/thermostat?format=json', o )
             .then( (data) => {
+                currentData = data;
                 fulfill(data);
             }).
             catch( (err) =>{

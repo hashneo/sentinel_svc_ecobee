@@ -119,23 +119,37 @@ function ecobee(config) {
     };
 
     this.setFanMode = (id, mode) =>{
-        return new Promise( (fulfill, reject) => {
-            try {
-                fulfill();
-            }catch(err){
-                reject(err);
-            }
-        });
+
+        switch( mode ){
+            case 'auto':
+                return ecobeeApi.resumeProgram( id );
+            case 'continuous':
+                return ecobeeApi.setFan( id, 'on');
+            case 'periodic':
+                return ecobeeApi.setFan( id, 'on', 2);
+            case 'off':
+                return ecobeeApi.resumeProgram( id );
+        }
     };
 
     this.setHvacMode = (id, mode) =>{
-        return new Promise( (fulfill, reject) => {
-            try {
-                fulfill();
-            }catch(err){
-                reject(err);
-            }
-        });
+
+        switch (mode) {
+            case 'resume':
+                return ecobeeApi.resumeProgram( id );
+            case 'heat':
+                return ecobeeApi.setValue( id, 'hvacMode', 'heat');
+            case 'cool':
+                return ecobeeApi.setValue( id, 'hvacMode', 'cool');
+            case 'auto':
+                return ecobeeApi.setValue( id, 'hvacMode', 'auto');
+            case 'away':
+                return ecobeeApi.setAway( id );
+            case 'home':
+                return ecobeeApi.resumeProgram( id );
+            case 'off':
+                return ecobeeApi.setValue( id, 'hvacMode', 'off');
+        }
     };
 
     this.setHvacTemp_H = (id, value) =>{
@@ -145,9 +159,22 @@ function ecobee(config) {
                 if (err)
                     return reject(err);
                 try {
+                    current.temperature.heat.set = value;
+
                     statusCache.set(id, current);
 
-                    fulfill();
+                    ecobeeApi.setHold( id, {
+                        holdType: 'nextTransition',
+                        coolHoldTemp: current.temperature.cool.set * 10,
+                        heatHoldTemp: current.temperature.heat.set * 10
+                    })
+                        .then( (result) => {
+                            fulfill( result );
+                        })
+                        .catch( (err) => {
+                            reject( err );
+                        });
+
                 }catch(err){
                     reject(err);
                 }
@@ -164,9 +191,22 @@ function ecobee(config) {
                     return reject(err);
 
                 try {
+                    current.temperature.cool.set = value;
+
                     statusCache.set(id, current);
 
-                    fulfill();
+                    ecobeeApi.setHold( id, {
+                        holdType: 'nextTransition',
+                        coolHoldTemp: current.temperature.cool.set * 10,
+                        heatHoldTemp: current.temperature.heat.set * 10
+                    })
+                        .then( (result) => {
+                            fulfill( result );
+                        })
+                        .catch( (err) => {
+                            reject( err );
+                        });
+
                 }catch(err){
                     reject(err);
                 }
@@ -179,8 +219,43 @@ function ecobee(config) {
     function updateStatus() {
         return new Promise( ( fulfill, reject ) => {
             try {
-                fulfill();
-            }catch(err){
+                ecobeeApi.getCurrent()
+                    .then( (data) => {
+
+                        let devices = [];
+
+                        for (let x in data.thermostatList) {
+
+                            let thermostat = data.thermostatList[x];
+
+                            let d = {
+                                name: thermostat.name,
+                                id: thermostat.identifier,
+                            };
+
+                            for (let y in thermostat.remoteSensors) {
+                                let sensor =  thermostat.remoteSensors[y];
+
+                                if ( sensor.type !== 'thermostat' ) {
+                                    let s = {
+                                        name: sensor.name,
+                                        id: thermostat.identifier + '.' + sensor.id.replace(':', '_'),
+                                    };
+
+                                    statusCache.set(s.id, fillSensorStatus(sensor));
+                                }
+                            }
+
+                            statusCache.set(d.id, fillThermostatStatus(thermostat));
+                        }
+
+                        fulfill(devices);
+                    })
+                    .catch( (err) =>{
+                        reject(err);
+                    });
+
+            } catch(err){
                 reject(err);
             }
         });
@@ -191,6 +266,61 @@ function ecobee(config) {
             fulfill([]);
         });
     };
+
+    function fillThermostatStatus(thermostat){
+
+        let thermostatStatus = {
+            mode: thermostat.settings.hvacMode,
+            state: "off",
+            fan:{
+                mode: thermostat.runtime.desiredFanMode,
+                running: thermostat.runtime.desiredFanMode !== 'auto'
+            },
+            temperature : {
+                cool: {
+                    set: thermostat.runtime.desiredCool / 10.0
+                },
+                heat: {
+                    set: thermostat.runtime.desiredHeat / 10.0
+                },
+                current: thermostat.runtime.actualTemperature / 10.0,
+                humidity: thermostat.runtime.actualHumidity
+            },
+            battery: {
+                level: 100
+            }
+        };
+
+        return thermostatStatus
+    }
+
+    function fillSensorStatus(sensor){
+
+        let sensorStatus = {
+            armed: (sensor.inUse === 'true'),
+            temperature: {
+                current: 0
+            },
+            tripped: {
+                current: false
+            }
+        };
+
+        for (let z in sensor.capability) {
+            let capability = sensor.capability[z];
+
+            switch (capability.type) {
+                case 'temperature':
+                    sensorStatus.temperature.current = (capability.value / 10.0);
+                    break;
+                case 'occupancy':
+                    sensorStatus.tripped.current = ( capability.value === 'true');
+                    break;
+            }
+        }
+
+        return sensorStatus;
+    }
 
     function loadSystem(){
         return new Promise( ( fulfill, reject ) => {
@@ -212,28 +342,6 @@ function ecobee(config) {
                                 current: {}
                             };
 
-                            let thermostatStatus = {
-                                mode: thermostat.settings.hvacMode,
-                                state: "off",
-                                fan:{
-                                        mode: thermostat.runtime.desiredFanMode,
-                                        running: thermostat.runtime.desiredFanMode !== 'auto'
-                                    },
-                                temperature : {
-                                    cool: {
-                                        set: thermostat.runtime.desiredCool / 10.0
-                                    },
-                                    heat: {
-                                        set: thermostat.runtime.desiredHeat / 10.0
-                                    },
-                                    current: thermostat.runtime.actualTemperature / 10.0,
-                                    humidity: thermostat.runtime.actualHumidity
-                                },
-                                battery: {
-                                    level: 100
-                                }
-                            };
-
                             for (let y in thermostat.remoteSensors) {
                                 let sensor =  thermostat.remoteSensors[y];
 
@@ -245,34 +353,11 @@ function ecobee(config) {
                                         current: {}
                                     };
 
-                                    let sensorStatus = {
-                                        armed: (sensor.inUse === 'true'),
-                                        temperature: {
-                                            current: 0
-                                        },
-                                        tripped: {
-                                            current: false
-                                        }
-                                    };
-
-                                    for (let z in sensor.capability) {
-                                        let capability = sensor.capability[z];
-
-                                        switch (capability.type) {
-                                            case 'temperature':
-                                                sensorStatus.temperature.current = (capability.value / 10.0);
-                                                break;
-                                            case 'occupancy':
-                                                sensorStatus.tripped.current = ( capability.value === 'true');
-                                                break;
-                                        }
-                                    }
-
                                     deviceCache.set(s.id, s);
 
                                     devices.push(s);
 
-                                    statusCache.set(s.id, sensorStatus);
+                                    statusCache.set(s.id, fillSensorStatus(sensor));
                                 }
                             }
 
@@ -280,7 +365,7 @@ function ecobee(config) {
 
                             devices.push(d);
 
-                            statusCache.set(d.id, thermostatStatus);
+                            statusCache.set(d.id, fillThermostatStatus(thermostat));
                         }
 
                         fulfill(devices);

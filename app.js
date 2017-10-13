@@ -57,7 +57,7 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
 
     let pub = redis.createClient(
         {
-            host: process.env.REDIS || global.config.redis || '127.0.0.1' ,
+            host: process.env.REDIS || global.config.redis || '127.0.0.1',
             socket_keepalive: true,
             retry_unfulfilled_commands: true
         }
@@ -99,12 +99,14 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
 
                 pub.publish( 'sentinel.module.start', JSON.stringify( module, '\t' ) );
 
+                setInterval( () => {
+                    pub.publish('sentinel.module.running', JSON.stringify(module, '\t'));
+                }, 30000 );
+
                 if (swaggerExpress.runner.swagger.paths['/health']) {
                     console.log(`you can get /health?id=${serviceId} on port ${port}`);
                 }
-
                 global.module = require('./ecobee.js')(config);
-
             });
 
         });
