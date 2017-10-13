@@ -236,14 +236,14 @@ function ecobee(config) {
                             for (let y in thermostat.remoteSensors) {
                                 let sensor =  thermostat.remoteSensors[y];
 
-                                if ( sensor.type !== 'thermostat' ) {
+                                //if ( sensor.type !== 'thermostat' ) {
                                     let s = {
                                         name: sensor.name,
                                         id: thermostat.identifier + '.' + sensor.id.replace(':', '_'),
                                     };
 
                                     statusCache.set(s.id, fillSensorStatus(sensor));
-                                }
+                                //}
                             }
 
                             statusCache.set(d.id, fillThermostatStatus(thermostat));
@@ -297,7 +297,7 @@ function ecobee(config) {
     function fillSensorStatus(sensor){
 
         let sensorStatus = {
-            armed: (sensor.inUse === 'true'),
+            armed: true, //sensor.inUse,
             temperature: {
                 current: 0
             },
@@ -345,7 +345,7 @@ function ecobee(config) {
                             for (let y in thermostat.remoteSensors) {
                                 let sensor =  thermostat.remoteSensors[y];
 
-                                if ( sensor.type !== 'thermostat' ) {
+                                //if ( sensor.type !== 'thermostat' ) {
                                     let s = {
                                         name: sensor.name,
                                         id: thermostat.identifier + '.' + sensor.id.replace(':', '_'),
@@ -358,7 +358,7 @@ function ecobee(config) {
                                     devices.push(s);
 
                                     statusCache.set(s.id, fillSensorStatus(sensor));
-                                }
+                                //}
                             }
 
                             deviceCache.set(d.id, d);
