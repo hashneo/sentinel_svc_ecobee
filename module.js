@@ -394,19 +394,22 @@ function ecobee(config) {
 
                             if ( err.error){
                                 if ( err.error === 'authorization_pending' ) {
-                                    setTimeout(init, 1000);
+                                    setTimeout(pollSystem, 1000);
                                     return;
                                 } else if ( err.error === 'slow_down' ) {
-                                    setTimeout(init, 60000);
+                                    setTimeout(pollSystem, 60000);
                                     return;
                                 } else if ( err.error === 'authorization_expired' ){
-                                    setTimeout(init, 1000);
+                                    setTimeout(pollSystem, 1000);
                                     return;
                                 } else if ( err.error === 'invalid_grant' ){
-                                    setTimeout(init, 1000);
+                                    setTimeout(pollSystem, 1000);
                                     return;
                                 } else if ( err.error === 'empty_response' ){
-                                    setTimeout(init, 1000);
+                                    setTimeout(pollSystem, 1000);
+                                    return;
+                                } else if ( err.error === 'invalid_response' ){
+                                    setTimeout(pollSystem, 1000);
                                     return;
                                 }
                             }
