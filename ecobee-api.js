@@ -11,6 +11,10 @@ function ecobeeApi() {
 
     let apiKey = 'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
 
+    if ( process.env.DEBUG ) {
+        apiKey = 'vWo7wfSopNBzoTvZ7Hf4UEee95r5boOR';
+    }
+
     let ecobeePin;
 
     let accessToken;
@@ -28,13 +32,13 @@ function ecobeeApi() {
             if (!accessToken || !accessToken.access_token || accessToken.expired){
                 requestToken()
                     .then( (token) => {
-                        let wasRefresh = (accessToken.expired);
+                        let wasRefresh = (accessToken && accessToken.expired);
                         accessToken = token;
                         global.config['auth'] = accessToken;
                         global.config.auth['expires_at'] = moment.utc().add(token.expires_in, 'm').format();
                         global.config.save()
                             .then( () => {
-                                if ( wasRefresh ){
+                                //if ( wasRefresh ){
                                     call(method, body, url)
                                         .then( (data) => {
                                             fulfill(data);
@@ -42,9 +46,11 @@ function ecobeeApi() {
                                         .catch( (err) => {
                                             reject(err);
                                         });
+                                    /*
                                 } else {
                                     fulfill();
                                 }
+                                */
                             })
                             .catch( (err) => {
                                 reject(err);
@@ -84,7 +90,26 @@ function ecobeeApi() {
                     if (err)
                         reject(err);
 
-                    let r = JSON.parse(data);
+                    if (!data){
+                        return reject( {
+                            error: "empty_response",
+                            error_description: "Received an empty response from the server.",
+                            error_uri: ""
+                        } );
+                    }
+
+                    let r;
+
+                    try {
+                        r = JSON.parse(data);
+                    }
+                    catch( err ){
+                        return reject( {
+                            error: "invalid_response",
+                            error_description: "Received an invalid (non json) response from the server.",
+                            error_uri: ""
+                        } );
+                    }
 
                     if ( r.status ){
 
