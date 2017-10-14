@@ -15,14 +15,16 @@ const consul = require('consul')( {
     promisify: true
 });
 
+let moduleName = 'ecobee';
+
 app.use(bodyParser.json({limit: '50mb'}));
 app.use(cookieParser());
 
-var _config = {
+let appConfig = {
     appRoot: __dirname, // required config
     swaggerSecurityHandlers: {
         Oauth: (req, authOrSecDef, scopesOrApiKey, cb) => {
-            if (scopesOrApiKey == "open") {
+            if (scopesOrApiKey === 'open') {
                 cb();
             }else {
                 cb();
@@ -31,7 +33,7 @@ var _config = {
     }
 };
 
-consul.kv.get('config/sentinel/ecobee', function(err, result) {
+consul.kv.get(`config/sentinel/${moduleName}`, function(err, result) {
     if (err) throw err;
 
     if (!result)
@@ -44,7 +46,7 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
 
     config.save = function(){
         return new Promise( (fulfill, reject) => {
-            consul.kv.set( 'config/sentinel/ecobee', JSON.stringify(this, null, '\t'), function(err, result) {
+            consul.kv.set( `config/sentinel/${moduleName}`, JSON.stringify(this, null, '\t'), function(err, result) {
                 if (err)
                     return reject(err);
                 fulfill(result);
@@ -63,7 +65,7 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
         }
     );
 
-    SwaggerExpress.create(_config, function (err, swaggerExpress) {
+    SwaggerExpress.create(appConfig, function (err, swaggerExpress) {
         if (err) {
             throw err;
         }
@@ -74,15 +76,15 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
 
         let serviceId = process.env.SERVICE_ID || uuid.v4();
 
-        var port = process.env.PORT || 5000;
-        var server = app.listen(port, () => {
+        let port = process.env.PORT || 5000;
+        let server = app.listen(port, () => {
 
             let host = require('ip').address();
             let port = server.address().port;
 
-            var module = {
+            let module = {
                 id: serviceId,
-                name: 'ecobee',
+                name: moduleName,
                 address: host,
                 port: port,
                 active: true,
@@ -106,7 +108,7 @@ consul.kv.get('config/sentinel/ecobee', function(err, result) {
                 if (swaggerExpress.runner.swagger.paths['/health']) {
                     console.log(`you can get /health?id=${serviceId} on port ${port}`);
                 }
-                global.module = require('./ecobee.js')(config);
+                global.module = require('./module.js')(config);
             });
 
         });
