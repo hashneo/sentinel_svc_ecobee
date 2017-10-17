@@ -291,7 +291,14 @@ function ecobee(config) {
             }
         };
 
-        return thermostatStatus
+        for (let i in thermostat.events){
+            let event = thermostat.events[i];
+
+            if ( event.holdClimateRef === 'away')
+                thermostatStatus.mode = 'away';
+        }
+
+        return thermostatStatus;
     }
 
     function fillSensorStatus(sensor){

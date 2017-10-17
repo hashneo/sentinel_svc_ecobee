@@ -380,7 +380,8 @@ function ecobeeApi() {
                     includeRuntime: true,
                     includeSettings: true,
                     includeEquipmentStatus: true,
-                    includeSensors: true
+                    includeSensors: true,
+                    includeEvents: true
                 }
             };
 
@@ -410,7 +411,8 @@ function ecobeeApi() {
                     includeRuntime: true,
                     includeSettings: true,
                     includeEquipmentStatus: true,
-                    includeSensors: true
+                    includeSensors: true,
+                    includeEvents: true
                 }
             };
 
