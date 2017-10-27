@@ -57,7 +57,7 @@ function ecobeeApi() {
                             })
                     })
                     .catch( (err) =>{
-                        global.config['auth'] = null;
+//                        global.config['auth'] = null;
 //                        global.config.save();
                         reject(err);
                     });
