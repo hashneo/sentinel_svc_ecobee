@@ -269,12 +269,17 @@ function ecobee(config) {
 
     function fillThermostatStatus(thermostat){
 
+        let equipmentStatus = thermostat.equipmentStatus.split(',');
+
+        // heatPump, heatPump2, heatPump3, compCool1, compCool2, auxHeat1, auxHeat2, auxHeat3, fan, humidifier, dehumidifier, ventilator, economizer, compHotWater, auxHotWater
+
+
         let thermostatStatus = {
             mode: thermostat.settings.hvacMode,
-            state: "off",
+            state: 'off',
             fan:{
                 mode: thermostat.runtime.desiredFanMode,
-                running: thermostat.runtime.desiredFanMode !== 'auto'
+                running: false
             },
             temperature : {
                 cool: {
@@ -290,6 +295,18 @@ function ecobee(config) {
                 level: 100
             }
         };
+
+        if ( equipmentStatus.find( (e) =>{ return e === 'fan' } ) ){
+            thermostatStatus.fan.running = true;
+        }
+
+        if ( equipmentStatus.find( (e) =>{
+            return e.startsWith('heatPump') ||  e.startsWith('auxHeat')
+        } ) ){
+            thermostatStatus.mode = 'heating';
+        } else if ( equipmentStatus.find( (e) =>{ return e.startsWith('compCool') } ) ){
+            thermostatStatus.mode = 'cooling';
+        }
 
         for (let i in thermostat.events){
             let event = thermostat.events[i];
