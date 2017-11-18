@@ -23,6 +23,8 @@ function ecobeeApi() {
 
     let currentData;
 
+    let processDieOnAuthFail = false;
+
     function call(method, body, url) {
 
         return new Promise( (fulfill, reject) => {
@@ -124,6 +126,12 @@ function ecobeeApi() {
                                     } );
                                 }
 
+                                // We were authorized and if we lose that auth token (for whatever reason) bounce the app.
+                                // It seems there is a bug on ecobee side where my tokens are good but they reject them. Bouncing the
+                                // app retries with the existing tokens which should work. if not, then they are bad and we need to
+                                // re-auth.
+                                processDieOnAuthFail = true;
+
                                 return fulfill(r);
                                 break;
 
@@ -140,7 +148,8 @@ function ecobeeApi() {
                                 // Wipe tokens and need to restart it all.
                                 ecobeePin = null;
                                 global.config.auth = {};
-                                process.exit(1);
+                                if ( processDieOnAuthFail )
+                                    process.exit(1);
                                 //global.config.save();
 
                             // Authentication token has expired.
