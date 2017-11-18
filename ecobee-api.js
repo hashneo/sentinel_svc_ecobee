@@ -140,6 +140,7 @@ function ecobeeApi() {
                                 // Wipe tokens and need to restart it all.
                                 ecobeePin = null;
                                 global.config.auth = {};
+                                process.exit(1);
                                 //global.config.save();
 
                             // Authentication token has expired.
