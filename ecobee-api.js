@@ -9,10 +9,15 @@ function ecobeeApi() {
     const https = require('https');
     const keepAliveAgent = new https.Agent({ keepAlive: true });
 
-    let apiKey = 'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
-
+    let apiKey = global.config.apiKey; //'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
+/*
     if ( process.env.DEBUG ) {
         apiKey = 'vWo7wfSopNBzoTvZ7Hf4UEee95r5boOR';
+    }
+*/
+    if (!apiKey){
+        console.error('Missing apiKey in configuration');
+        process.exit(1);
     }
 
     let ecobeePin;
@@ -25,6 +30,8 @@ function ecobeeApi() {
 
     let processDieOnAuthFail = false;
 
+    let noPinEntryRetries = 2;
+
     function call(method, body, url) {
 
         return new Promise( (fulfill, reject) => {
@@ -34,6 +41,7 @@ function ecobeeApi() {
             if (!accessToken || !accessToken.access_token || accessToken.expired){
                 requestToken()
                     .then( (token) => {
+                        noPinEntryRetries = 10;
                         let wasRefresh = (accessToken && accessToken.expired);
                         accessToken = token;
                         global.config['auth'] = accessToken;
@@ -198,6 +206,14 @@ function ecobeeApi() {
                 if (!ecobeePin || !ecobeePin.code) {
                     that.requestPin()
                         .then(() => {
+
+                            noPinEntryRetries--;
+
+                            if ( noPinEntryRetries <= 0 ){
+                                console.log('Maximum number of pin requests reached, giving up');
+                                process.exit(1);
+                            }
+
                             return requestToken();
                         })
                         .catch((err) => {
@@ -210,7 +226,7 @@ function ecobeeApi() {
 
                 if (moment().utc() < next_poll) {
 
-                    console.log(`ecobee authorization is pending.`);
+                    //console.log(`ecobee authorization is pending.`);
 
                     return reject(
                         {
