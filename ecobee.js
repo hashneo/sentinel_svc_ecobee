@@ -109,7 +109,7 @@ function ecobee(config) {
                     if (err)
                         return reject(err);
 
-                    delete value._raw;
+                    //delete value._raw;
 
                     fulfill(value);
                 }, true);
@@ -379,7 +379,7 @@ function ecobee(config) {
                 thermostatStatus.mode = 'away';
         }
 
-        thermostatStatus['_raw'] = thermostat;
+        //thermostatStatus['_raw'] = thermostat;
 
         return thermostatStatus;
     }
