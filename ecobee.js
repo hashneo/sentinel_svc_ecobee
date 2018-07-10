@@ -109,6 +109,8 @@ function ecobee(config) {
                     if (err)
                         return reject(err);
 
+                    delete value._raw;
+
                     fulfill(value);
                 }, true);
             }catch(err){
@@ -128,91 +130,153 @@ function ecobee(config) {
             case 'periodic':
                 return ecobeeApi.setFan( id, 'on', 2);
             case 'off':
-                return ecobeeApi.resumeProgram( id );
+                return ecobeeApi.setFan( id, 'off');
         }
     };
 
     this.setHvacMode = (id, mode) =>{
 
-        switch (mode) {
-            case 'resume':
-                return ecobeeApi.resumeProgram( id );
-            case 'heat':
-                return ecobeeApi.setValue( id, 'hvacMode', 'heat');
-            case 'cool':
-                return ecobeeApi.setValue( id, 'hvacMode', 'cool');
-            case 'auto':
-                return ecobeeApi.setValue( id, 'hvacMode', 'auto');
-            case 'away':
-                return ecobeeApi.setAway( id );
-            case 'home':
-                return ecobeeApi.resumeProgram( id );
-            case 'off':
-                return ecobeeApi.setValue( id, 'hvacMode', 'off');
-        }
+        return new Promise( (fulfill, reject) => {
+
+            let p = null;
+
+            switch (mode) {
+                case 'resume':
+                    p = ecobeeApi.resumeProgram(id);
+                    break;
+                case 'heat':
+                    p = ecobeeApi.setValue(id, 'hvacMode', 'heat');
+                    break;
+                case 'cool':
+                    p = ecobeeApi.setValue(id, 'hvacMode', 'cool');
+                    break;
+                case 'auto':
+                    p = ecobeeApi.setValue(id, 'hvacMode', 'auto');
+                    break;
+                case 'away':
+                    p = ecobeeApi.setAway(id);
+                    break;
+                case 'home':
+                    p = ecobeeApi.resumeProgram(id);
+                    break;
+                case 'off':
+                    p = ecobeeApi.setValue(id, 'hvacMode', 'off');
+                    break;
+            }
+
+            p
+                .then( (r) =>{
+                    statusCache.get(id, (err, current) => {
+
+                        if (err)
+                            return reject(err);
+
+                        current.mode = mode;
+
+                        statusCache.set(id, current, (err) => {
+
+                            if (err)
+                                return reject(err);
+
+                            fulfill(r);
+                        });
+                    });
+
+                })
+                .catch( (err) =>{
+                    reject(err);
+                });
+        });
+
     };
 
-    this.setHvacTemp_H = (id, value) =>{
+    function setHvacTemp( id ){
+
         return new Promise( (fulfill, reject) => {
 
             statusCache.get(id, (err, current) => {
                 if (err)
                     return reject(err);
                 try {
-                    current.temperature.heat.set = value;
 
-                    statusCache.set(id, current);
-
-                    ecobeeApi.setHold( id, {
-                        holdType: 'nextTransition',
-                        coolHoldTemp: current.temperature.cool.set * 10,
-                        heatHoldTemp: current.temperature.heat.set * 10
-                    })
-                        .then( (result) => {
-                            fulfill( result );
+                    if ( current.mode !== 'away' && current.mode !== 'off' ) {
+                        ecobeeApi.setHold(id, {
+                            holdType: 'nextTransition',
+                            coolHoldTemp: current.temperature.cool.set * 10,
+                            heatHoldTemp: current.temperature.heat.set * 10
                         })
-                        .catch( (err) => {
-                            reject( err );
-                        });
+                            .then((result) => {
+                                fulfill(result);
+                            })
+                            .catch((err) => {
+                                reject(err);
+                            });
+                    } else {
+                        fulfill( { 'ignored' : true } );
+                    }
 
-                }catch(err){
+                } catch(err){
                     reject(err);
                 }
             }, true);
 
         });
+    }
+
+    this.setHvacTemp_H = (id, value) =>{
+
+        return new Promise( (fulfill, reject) => {
+            statusCache.get(id, (err, current) => {
+                if (err)
+                    return reject(err);
+
+                current.temperature.heat.set = value;
+
+                statusCache.set(id, current, (err) => {
+
+                    if (err)
+                        return reject(err);
+
+                    setHvacTemp(id)
+                        .then((result) => {
+                            fulfill(result);
+                        })
+                        .catch((err) => {
+                            reject(err);
+                        });
+                });
+
+            }, true);
+        });
+
     };
 
     this.setHvacTemp_C = (id, value) =>{
-        return new Promise( (fulfill, reject) => {
 
+        return new Promise( (fulfill, reject) => {
             statusCache.get(id, (err, current) => {
                 if (err)
                     return reject(err);
 
-                try {
-                    current.temperature.cool.set = value;
+                current.temperature.cool.set = value;
 
-                    statusCache.set(id, current);
+                statusCache.set(id, current, (err) => {
 
-                    ecobeeApi.setHold( id, {
-                        holdType: 'nextTransition',
-                        coolHoldTemp: current.temperature.cool.set * 10,
-                        heatHoldTemp: current.temperature.heat.set * 10
-                    })
-                        .then( (result) => {
-                            fulfill( result );
+                    if (err)
+                        return reject(err);
+
+                    setHvacTemp(id)
+                        .then((result) => {
+                            fulfill(result);
                         })
-                        .catch( (err) => {
-                            reject( err );
+                        .catch((err) => {
+                            reject(err);
                         });
+                });
 
-                }catch(err){
-                    reject(err);
-                }
             }, true);
-
         });
+
     };
 
 
@@ -315,6 +379,8 @@ function ecobee(config) {
                 thermostatStatus.mode = 'away';
         }
 
+        thermostatStatus['_raw'] = thermostat;
+
         return thermostatStatus;
     }
 
@@ -389,7 +455,9 @@ function ecobee(config) {
 
                             devices.push(d);
 
-                            statusCache.set(d.id, fillThermostatStatus(thermostat));
+                            let status = fillThermostatStatus(thermostat);
+
+                            statusCache.set(d.id, status);
                         }
 
                         fulfill(devices);
