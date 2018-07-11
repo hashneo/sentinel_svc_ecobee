@@ -138,38 +138,43 @@ function ecobee(config) {
 
         return new Promise( (fulfill, reject) => {
 
-            let p = null;
+            statusCache.get(id, (err, current) => {
 
-            switch (mode) {
-                case 'resume':
-                    p = ecobeeApi.resumeProgram(id);
-                    break;
-                case 'heat':
-                    p = ecobeeApi.setValue(id, 'hvacMode', 'heat');
-                    break;
-                case 'cool':
-                    p = ecobeeApi.setValue(id, 'hvacMode', 'cool');
-                    break;
-                case 'auto':
-                    p = ecobeeApi.setValue(id, 'hvacMode', 'auto');
-                    break;
-                case 'away':
-                    p = ecobeeApi.setAway(id);
-                    break;
-                case 'home':
-                    p = ecobeeApi.resumeProgram(id);
-                    break;
-                case 'off':
-                    p = ecobeeApi.setValue(id, 'hvacMode', 'off');
-                    break;
-            }
+                if (err)
+                    return reject(err);
 
-            p
-                .then( (r) =>{
-                    statusCache.get(id, (err, current) => {
+                let p = null;
 
-                        if (err)
-                            return reject(err);
+                if (current.mode !== 'away' && mode === 'home'){
+                    return fulfill( {ignored: true} );
+                }
+
+                switch (mode) {
+                    case 'resume':
+                        p = ecobeeApi.resumeProgram(id);
+                        break;
+                    case 'heat':
+                        p = ecobeeApi.setValue(id, 'hvacMode', 'heat');
+                        break;
+                    case 'cool':
+                        p = ecobeeApi.setValue(id, 'hvacMode', 'cool');
+                        break;
+                    case 'auto':
+                        p = ecobeeApi.setValue(id, 'hvacMode', 'auto');
+                        break;
+                    case 'away':
+                        p = ecobeeApi.setAway(id);
+                        break;
+                    case 'home':
+                        p = ecobeeApi.resumeProgram(id);
+                        break;
+                    case 'off':
+                        p = ecobeeApi.setValue(id, 'hvacMode', 'off');
+                        break;
+                }
+
+                p
+                    .then((r) => {
 
                         current.mode = mode;
 
@@ -180,12 +185,13 @@ function ecobee(config) {
 
                             fulfill(r);
                         });
-                    });
 
-                })
-                .catch( (err) =>{
-                    reject(err);
-                });
+
+                    })
+                    .catch((err) => {
+                        reject(err);
+                    });
+            });
         });
 
     };
