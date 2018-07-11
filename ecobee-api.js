@@ -392,7 +392,7 @@ function ecobeeApi() {
     };
 
     this.resumeProgram = ( id ) => {
-        return that.callFunction( id, 'resumeProgram', { resumeAll: false } );
+        return that.callFunction( id, 'resumeProgram', { resumeAll: true } );
     };
 
     this.getCurrent = () => {
