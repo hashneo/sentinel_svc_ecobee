@@ -373,9 +373,9 @@ function ecobee(config) {
         if ( equipmentStatus.find( (e) =>{
             return e.startsWith('heatPump') ||  e.startsWith('auxHeat')
         } ) ){
-            thermostatStatus.mode = 'heating';
+            thermostatStatus.mode = 'heat';
         } else if ( equipmentStatus.find( (e) =>{ return e.startsWith('compCool') } ) ){
-            thermostatStatus.mode = 'cooling';
+            thermostatStatus.mode = 'cool';
         }
 
         for (let i in thermostat.events){
