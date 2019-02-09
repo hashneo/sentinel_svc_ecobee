@@ -11,6 +11,7 @@ function ecobee(config) {
 
     const redis = require('redis');
     var moment = require('moment');
+    const logger = require('sentinel-common').logger;
 
     let pub = redis.createClient(
         {
@@ -27,7 +28,7 @@ function ecobee(config) {
 */
 
     pub.on('end', function(e){
-        console.log('Redis hung up, committing suicide');
+        logger.error('Redis hung up, committing suicide');
         process.exit(1);
     });
 
@@ -47,19 +48,19 @@ function ecobee(config) {
 
     deviceCache.on( 'set', function( key, value ){
         let data = JSON.stringify( { module: 'ecobee', id : key, value : value });
-        console.log( 'sentinel.device.insert => ' + data );
+        logger.info( 'sentinel.device.insert => ' + data );
         pub.publish( 'sentinel.device.insert', data);
     });
 
     deviceCache.on( 'delete', function( key ){
         let data = JSON.stringify( { module: 'ecobee', id : key });
-        console.log( 'sentinel.device.delete => ' + data );
+        logger.info( 'sentinel.device.delete => ' + data );
         pub.publish( 'sentinel.device.delete', data);
     });
 
     statusCache.on( 'set', function( key, value ){
         let data = JSON.stringify( { module: 'ecobee', id : key, value : value });
-        //console.log( 'sentinel.device.update => ' + data );
+        logger.debug( 'sentinel.device.update => ' + data );
         pub.publish( 'sentinel.device.update', data);
     });
 
@@ -512,7 +513,7 @@ function ecobee(config) {
                                 }
                             }
 
-                            console.error(err);
+                            logger.error(err);
                             //process.exit(1);
                             setTimeout(pollSystem, 60000);
                         });
@@ -540,7 +541,7 @@ function ecobee(config) {
                         return;
                     }
                 }
-                console.error(err);
+                logger.error(err);
                 process.exit(1);
             });
     }
