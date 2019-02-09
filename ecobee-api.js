@@ -79,7 +79,7 @@ function ecobeeApi() {
                 method: method,
                 url: url,
                 //encoding: null,
-                timeout: 30000,
+                timeout: 60000,
                 //agent: keepAliveAgent,
                 headers: {
                     Authorization: `Bearer ${accessToken.access_token}`
