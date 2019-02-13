@@ -5,6 +5,7 @@ function ecobeeApi() {
 
     const request = require('request');
     const moment = require('moment');
+    const logger = require('sentinel-common').logger;
 
     const https = require('https');
     const keepAliveAgent = new https.Agent({ keepAlive: true });
@@ -16,7 +17,7 @@ function ecobeeApi() {
     }
 */
     if (!apiKey){
-        console.error('Missing apiKey in configuration');
+        logger.error('Missing apiKey in configuration');
         process.exit(1);
     }
 
@@ -31,6 +32,10 @@ function ecobeeApi() {
     let processDieOnAuthFail = false;
 
     let noPinEntryRetries = 2;
+
+    const EventEmitter = require('events');
+
+    const events = new EventEmitter();
 
     function call(method, body, url) {
 
@@ -152,7 +157,7 @@ function ecobeeApi() {
                             case 1:
                             // Invalid token. Token has been deauthorized by user. You must re-request authorization.
                             case 16:
-                                console.log( 'ecobee authentication has failed, You must re-request authorization.');
+                                logger.info( 'ecobee authentication has failed, You must re-request authorization.');
                                 // Wipe tokens and need to restart it all.
                                 ecobeePin = null;
                                 global.config.auth = {};
@@ -182,7 +187,7 @@ function ecobeeApi() {
                     reject(r);
                 });
             } catch (e) {
-                console.log('request error => ' + e);
+                logger.error('request error => ' + e);
                 reject(e);
             }
         });
@@ -210,7 +215,7 @@ function ecobeeApi() {
                             noPinEntryRetries--;
 
                             if ( noPinEntryRetries <= 0 ){
-                                console.log('Maximum number of pin requests reached, giving up');
+                                logger.error('Maximum number of pin requests reached, giving up');
                                 process.exit(1);
                             }
 
@@ -225,8 +230,6 @@ function ecobeeApi() {
                 let next_poll = moment(ecobeePin.next_poll);
 
                 if (moment().utc() < next_poll) {
-
-                    //console.log(`ecobee authorization is pending.`);
 
                     return reject(
                         {
@@ -254,11 +257,11 @@ function ecobeeApi() {
 
                 if ( r.error ){
                     if ( r.error === 'authorization_expired' ){
-                        console.log( `ecobee authorization has expired. need to request a new ecobee pin and establish trust.`);
+                        logger.info( `ecobee authorization has expired. need to request a new ecobee pin and establish trust.`);
                         ecobeePin = null;
                     }
                     if ( r.error === 'invalid_grant' ){
-                        console.log( `ecobee authorization is invalid. need to request a new ecobee pin and establish trust.`);
+                        logger.info( `ecobee authorization is invalid. need to request a new ecobee pin and establish trust.`);
                         ecobeePin = null;
                         global.config.auth = null;
                     }
@@ -281,10 +284,10 @@ function ecobeeApi() {
                 let expires_at = moment( ecobeePin.expires_at );
 
                 if ( expires_at >= moment().utc() ) {
-                    console.log( `existing ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
+                    logger.info( `existing ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
                     return fulfill( ecobeePin );
                 } else {
-                    console.log( `ecobee pin => ${ecobeePin.ecobeePin}, has expired. requesting a new one.`);
+                    logger.info( `ecobee pin => ${ecobeePin.ecobeePin}, has expired. requesting a new one.`);
                     ecobeePin = null;
                 }
             }
@@ -299,7 +302,9 @@ function ecobeeApi() {
                 ecobeePin['expires_at'] = moment.utc().add( ecobeePin.expires_in, 'm' ).format();
                 ecobeePin['next_poll'] =  moment.utc().add( parseInt(ecobeePin.interval) + 2, 's' ).format();
 
-                console.log( `new ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
+                logger.info( `new ecobee pin => ${ecobeePin.ecobeePin}, expires at => ${ecobeePin.expires_at}`);
+
+                events.emit('request-pin', {pin: ecobeePin.ecobeePin, url: 'https://www.ecobee.com/consumerportal/index.html', expires: ecobeePin.expires_at});
 
                 return fulfill( ecobeePin );
 
@@ -455,6 +460,9 @@ function ecobeeApi() {
 
     };
 
+    this.on = (event, callback) =>{
+        events.on(event, callback);
+    }
 }
 
 module.exports = new ecobeeApi();

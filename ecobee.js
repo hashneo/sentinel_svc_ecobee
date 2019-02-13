@@ -39,26 +39,30 @@ function ecobee(config) {
 
     var merge = require('deepmerge');
 
-    var request = require('request');
-
 /*
+    var request = require('request');
     require('request').debug = true
     require('request-debug')(request);
 */
 
-    deviceCache.on( 'set', function( key, value ){
+    ecobeeApi.on('request-pin', ( value ) =>{
+        let data = JSON.stringify( { module: 'ecobee', value : value } );
+        logger.info( 'sentinel.module.user.notify => ' + data );
+    });
+
+    deviceCache.on( 'set', ( key, value ) => {
         let data = JSON.stringify( { module: 'ecobee', id : key, value : value });
         logger.info( 'sentinel.device.insert => ' + data );
         pub.publish( 'sentinel.device.insert', data);
     });
 
-    deviceCache.on( 'delete', function( key ){
+    deviceCache.on( 'delete', ( key ) => {
         let data = JSON.stringify( { module: 'ecobee', id : key });
         logger.info( 'sentinel.device.delete => ' + data );
         pub.publish( 'sentinel.device.delete', data);
     });
 
-    statusCache.on( 'set', function( key, value ){
+    statusCache.on( 'set', ( key, value ) => {
         let data = JSON.stringify( { module: 'ecobee', id : key, value : value });
         logger.debug( 'sentinel.device.update => ' + data );
         pub.publish( 'sentinel.device.update', data);
@@ -176,18 +180,13 @@ function ecobee(config) {
 
                 p
                     .then((r) => {
-
                         current.mode = mode;
-
                         statusCache.set(id, current, (err) => {
-
                             if (err)
                                 return reject(err);
 
                             fulfill(r);
                         });
-
-
                     })
                     .catch((err) => {
                         reject(err);
@@ -285,7 +284,6 @@ function ecobee(config) {
         });
 
     };
-
 
     function updateStatus() {
         return new Promise( ( fulfill, reject ) => {
@@ -513,7 +511,7 @@ function ecobee(config) {
                                 }
                             }
 
-                            logger.error(err);
+                            logger.error(err.message);
                             //process.exit(1);
                             setTimeout(pollSystem, 60000);
                         });
