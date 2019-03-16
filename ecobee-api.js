@@ -409,10 +409,12 @@ function ecobeeApi() {
                     selectionType: 'registered',
                     selectionMatch: '',
                     includeRuntime: true,
+                    includeLocation: true,
                     includeSettings: true,
                     includeEquipmentStatus: true,
                     includeSensors: true,
-                    includeEvents: true
+                    includeEvents: true,
+                    includeWeather: true
                 }
             };
 
@@ -443,7 +445,8 @@ function ecobeeApi() {
                     includeSettings: true,
                     includeEquipmentStatus: true,
                     includeSensors: true,
-                    includeEvents: true
+                    includeEvents: true,
+                    includeWeather: true
                 }
             };
 

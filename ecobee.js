@@ -315,7 +315,24 @@ function ecobee(config) {
                                 //}
                             }
 
-                            statusCache.set(d.id, fillThermostatStatus(thermostat));
+                            if ( thermostat.weather ) {
+
+                                let weather = thermostat.weather;
+
+                                if (weather.forecasts && weather.forecasts.length > 0) {
+                                    let weatherNow = weather.forecasts[0];
+
+                                    let s = {
+                                        name: thermostat.location.city,
+                                        id: thermostat.identifier + '.' + weather.weatherStation.replace(':', '_')
+                                    };
+
+                                    statusCache.set(s.id, fillSensorStatus(weatherNow));
+                                }
+
+
+                                statusCache.set(d.id, fillThermostatStatus(thermostat));
+                            }
                         }
 
                         fulfill(devices);
@@ -401,16 +418,26 @@ function ecobee(config) {
             }
         };
 
-        for (let z in sensor.capability) {
-            let capability = sensor.capability[z];
+        if ( sensor.capability ) {
+            for (let z in sensor.capability) {
+                let capability = sensor.capability[z];
 
-            switch (capability.type) {
-                case 'temperature':
-                    sensorStatus.temperature.current = (capability.value / 10.0);
-                    break;
-                case 'occupancy':
-                    sensorStatus.tripped.current = ( capability.value === 'true');
-                    break;
+                switch (capability.type) {
+                    case 'temperature':
+                        sensorStatus.temperature.current = (capability.value / 10.0);
+                        break;
+                    case 'occupancy':
+                        sensorStatus.tripped.current = (capability.value === 'true');
+                        break;
+                }
+            }
+        }
+
+        if ( sensor.weatherSymbol !== undefined ){
+            sensorStatus.temperature.current = sensor.temperature / 10.0;
+            sensorStatus.temperature['forecast'] = {
+                high: sensor.tempHigh / 10.0,
+                low: sensor.tempLow / 10.0
             }
         }
 
@@ -454,6 +481,29 @@ function ecobee(config) {
 
                                     statusCache.set(s.id, fillSensorStatus(sensor));
                                 //}
+                            }
+
+                             if ( thermostat.weather ){
+
+                                let weather = thermostat.weather;
+
+                                if ( weather.forecasts && weather.forecasts.length > 0 ) {
+                                    let weatherNow = weather.forecasts[0];
+
+                                    let s = {
+                                        name: thermostat.location.city,
+                                        id: thermostat.identifier + '.' + weather.weatherStation.replace(':', '_'),
+                                        type: 'sensor.temperature',
+                                        current: {}
+                                    };
+
+                                    deviceCache.set(s.id, s);
+
+                                    devices.push(s);
+
+                                    statusCache.set(s.id, fillSensorStatus(weatherNow));
+                                }
+
                             }
 
                             deviceCache.set(d.id, d);
