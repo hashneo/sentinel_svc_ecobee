@@ -10,12 +10,8 @@ function ecobeeApi() {
     const https = require('https');
     const keepAliveAgent = new https.Agent({ keepAlive: true });
 
-    let apiKey = global.config.apiKey; //'crcLaVjD5CBmZ4qduhnqHL7ce03ZKEOB';
-/*
-    if ( process.env.DEBUG ) {
-        apiKey = 'vWo7wfSopNBzoTvZ7Hf4UEee95r5boOR';
-    }
-*/
+    let apiKey = global.config.apiKey;
+
     if (!apiKey){
         logger.error('Missing apiKey in configuration');
         process.exit(1);
