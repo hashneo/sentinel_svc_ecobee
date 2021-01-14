@@ -33,7 +33,7 @@
     "chai": "^4.2.0",
     "mocha": "^5.2.0",
     "should": "^13.2.3",
-    "supertest": "^3.3.0",
+    "supertest": "^6.0.1",
     "swagger-parser": "^6.0.2"
   },
   "scripts": {
